@@ -5,10 +5,10 @@ from .curve_scalar import CurveScalar
 from .curve_point import CurvePoint
 from .dem import kdf
 from .hashing import Hash
-from .serializable import Serializable, Deserializable
+from .serializable import Serializable, SerializableSecret, Deserializable
 
 
-class SecretKey(Serializable, Deserializable):
+class SecretKey(SerializableSecret, Deserializable):
     """
     Umbral secret (private) key.
     """
@@ -33,9 +33,6 @@ class SecretKey(Serializable, Deserializable):
         """
         return self._public_key
 
-    def __eq__(self, other):
-        return self._scalar_key == other._scalar_key
-
     def __str__(self):
         return f"{self.__class__.__name__}:..."
 
@@ -53,7 +50,7 @@ class SecretKey(Serializable, Deserializable):
     def _from_exact_bytes(cls, data: bytes):
         return cls(CurveScalar._from_exact_bytes(data))
 
-    def __bytes__(self) -> bytes:
+    def to_secret_bytes(self) -> bytes:
         return bytes(self._scalar_key)
 
 
@@ -91,7 +88,7 @@ class PublicKey(Serializable, Deserializable):
         return hash((self.__class__, bytes(self)))
 
 
-class SecretKeyFactory(Serializable, Deserializable):
+class SecretKeyFactory(SerializableSecret, Deserializable):
     """
     This class handles keyring material for Umbral, by allowing deterministic
     derivation of :py:class:`SecretKey` objects based on labels.
@@ -99,7 +96,7 @@ class SecretKeyFactory(Serializable, Deserializable):
     Don't use this key material directly as a key.
     """
 
-    _KEY_SEED_SIZE = 64
+    _KEY_SEED_SIZE = 32
     _DERIVED_KEY_SIZE = 64
 
     def __init__(self, key_seed: bytes):
@@ -112,9 +109,32 @@ class SecretKeyFactory(Serializable, Deserializable):
         """
         return cls(os.urandom(cls._KEY_SEED_SIZE))
 
+    @classmethod
+    def seed_size(cls):
+        """
+        Returns the seed size required by
+        :py:meth:`~SecretKeyFactory.from_secure_randomness`.
+        """
+        return cls._KEY_SEED_SIZE
+
+    @classmethod
+    def from_secure_randomness(cls, seed: bytes) -> 'SecretKeyFactory':
+        """
+        Creates a secret key factory using the given random bytes
+        (of size :py:meth:`~SecretKeyFactory.seed_size`).
+
+        .. warning::
+
+            Make sure the given seed has been obtained
+            from a cryptographically secure source of randomness!
+        """
+        if len(seed) != cls.seed_size():
+            raise ValueError(f"Expected {cls.seed_size()} bytes, got {len(seed)}")
+        return cls(seed)
+
     def secret_key_by_label(self, label: bytes) -> SecretKey:
         """
-        Creates a :py:class:`SecretKey` from the given label.
+        Creates a :py:class:`SecretKey` deterministically from the given label.
         """
         tag = b"KEY_DERIVATION/" + label
         key = kdf(self.__key_seed, self._DERIVED_KEY_SIZE, info=tag)
@@ -125,6 +145,14 @@ class SecretKeyFactory(Serializable, Deserializable):
 
         return SecretKey(scalar_key)
 
+    def secret_key_factory_by_label(self, label: bytes) -> 'SecretKeyFactory':
+        """
+        Creates a :py:class:`SecretKeyFactory` deterministically from the given label.
+        """
+        tag = b"FACTORY_DERIVATION/" + label
+        key_seed = kdf(self.__key_seed, self._KEY_SEED_SIZE, info=tag)
+        return SecretKeyFactory(key_seed)
+
     @classmethod
     def serialized_size(cls):
         return cls._KEY_SEED_SIZE
@@ -133,7 +161,7 @@ class SecretKeyFactory(Serializable, Deserializable):
     def _from_exact_bytes(cls, data: bytes):
         return cls(data)
 
-    def __bytes__(self) -> bytes:
+    def to_secret_bytes(self) -> bytes:
         return bytes(self.__key_seed)
 
     def __str__(self):

@@ -1,6 +1,6 @@
 import pytest
 
-from umbral import encrypt, reencrypt, CapsuleFrag, Capsule, VerificationError
+from umbral import encrypt, reencrypt, CapsuleFrag, VerifiedCapsuleFrag, Capsule, VerificationError
 from umbral.curve_point import CurvePoint
 
 
@@ -114,6 +114,13 @@ def test_cfrag_str(capsule, kfrags):
     s = str(CapsuleFrag.from_bytes(bytes(cfrag0)))
     assert "VerifiedCapsuleFrag" not in s
     assert "CapsuleFrag" in s
+
+
+def test_from_verified_bytes(capsule, kfrags):
+    verified_cfrag = reencrypt(capsule, kfrags[0])
+    cfrag_bytes = bytes(verified_cfrag)
+    verified_cfrag_back = VerifiedCapsuleFrag.from_verified_bytes(cfrag_bytes)
+    assert verified_cfrag == verified_cfrag_back
 
 
 def test_serialized_size(capsule, kfrags):

@@ -12,7 +12,7 @@ class HasSerializedSize(ABC):
     def serialized_size(cls) -> int:
         """
         Returns the size in bytes of the serialized representation of this object
-        (obtained with ``bytes()``).
+        (obtained with ``bytes()`` or ``to_secret_bytes()``).
         """
         raise NotImplementedError
 
@@ -81,6 +81,20 @@ class Serializable(HasSerializedSize):
     def __bytes__(self):
         """
         Serializes the object into bytes.
+        """
+        raise NotImplementedError
+
+
+class SerializableSecret(HasSerializedSize):
+    """
+    A mixin for composable serialization of objects containing secret data.
+    """
+
+    @abstractmethod
+    def to_secret_bytes(self):
+        """
+        Serializes the object into bytes.
+        This bytestring is secret, handle with care!
         """
         raise NotImplementedError
 

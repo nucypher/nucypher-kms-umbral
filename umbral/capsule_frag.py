@@ -232,6 +232,18 @@ class VerifiedCapsuleFrag(Serializable):
     def serialized_size(cls):
         return CapsuleFrag.serialized_size()
 
+    @classmethod
+    def from_verified_bytes(cls, data) -> 'VerifiedCapsuleFrag':
+        """
+        Restores a verified capsule frag directly from serialized bytes,
+        skipping :py:meth:`CapsuleFrag.verify` call.
+
+        Intended for internal storage;
+        make sure that the bytes come from a trusted source.
+        """
+        cfrag = CapsuleFrag.from_bytes(data)
+        return cls(cfrag)
+
     def __eq__(self, other):
         return self.cfrag == other.cfrag
 

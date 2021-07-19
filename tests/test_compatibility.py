@@ -22,7 +22,7 @@ def pytest_generate_tests(metafunc):
 def _create_keypair(umbral):
     sk = umbral.SecretKey.random()
     pk = sk.public_key()
-    return bytes(sk), bytes(pk)
+    return sk.to_secret_bytes(), bytes(pk)
 
 
 def _restore_keys(umbral, sk_bytes, pk_bytes):
@@ -42,25 +42,32 @@ def test_keys(implementations):
     _restore_keys(umbral2, sk_bytes, pk_bytes)
 
 
-def _create_sk_factory_and_sk(umbral, label):
+def _create_sk_factory_and_sk(umbral, skf_label, key_label):
     skf = umbral.SecretKeyFactory.random()
-    sk = skf.secret_key_by_label(label)
-    return bytes(skf), bytes(sk)
+    derived_skf = skf.secret_key_factory_by_label(skf_label)
+    sk = derived_skf.secret_key_by_label(key_label)
+    return skf.to_secret_bytes(), derived_skf.to_secret_bytes(), sk.to_secret_bytes()
 
 
-def _check_sk_is_same(umbral, label, skf_bytes, sk_bytes):
+def _check_sk_is_same(umbral, skf_label, key_label, skf_bytes, derived_skf_bytes, sk_bytes):
     skf = umbral.SecretKeyFactory.from_bytes(skf_bytes)
+
+    derived_skf_restored = umbral.SecretKeyFactory.from_bytes(derived_skf_bytes)
+    derived_skf_generated = skf.secret_key_factory_by_label(skf_label)
+    assert derived_skf_generated.to_secret_bytes() == derived_skf_restored.to_secret_bytes()
+
     sk_restored = umbral.SecretKey.from_bytes(sk_bytes)
-    sk_generated = skf.secret_key_by_label(label)
-    assert sk_restored == sk_generated
+    sk_generated = derived_skf_generated.secret_key_by_label(key_label)
+    assert sk_restored.to_secret_bytes() == sk_generated.to_secret_bytes()
 
 
 def test_secret_key_factory(implementations):
     umbral1, umbral2 = implementations
-    label = b'label'
+    skf_label = b'skf label'
+    key_label = b'key label'
 
-    skf_bytes, sk_bytes = _create_sk_factory_and_sk(umbral1, label)
-    _check_sk_is_same(umbral2, label, skf_bytes, sk_bytes)
+    skf_bytes, derived_skf_bytes, sk_bytes = _create_sk_factory_and_sk(umbral1, skf_label, key_label)
+    _check_sk_is_same(umbral2, skf_label, key_label, skf_bytes, derived_skf_bytes, sk_bytes)
 
 
 def _encrypt(umbral, plaintext, pk_bytes):
